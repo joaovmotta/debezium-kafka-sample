@@ -1,51 +1,58 @@
-# Debezium Kafka CDC Sample
+## Debezium Kafka CDC Sample
 
-A sample project demonstrating Change Data Capture (CDC) using Debezium, Kafka, and Spring Boot with PostgreSQL.
+Este projeto demonstra um fluxo simples de CDC (Change Data Capture) com Postgres + Debezium + Kafka, e dois microsserviços Spring Boot: um produtor que escreve no banco e um consumidor que lê eventos do Kafka.
 
-## What is this?
+### Pré-requisitos
+- Docker e Docker Compose instalados
+- Java 17+ e Maven (opcional se quiser rodar os serviços localmente fora de containers)
 
-This project captures real-time database changes (INSERT, UPDATE, DELETE) from PostgreSQL and streams them to Kafka using Debezium. A Spring Boot consumer application processes these events.
+### Como iniciar
+1. Suba a infraestrutura (Zookeeper, Kafka, Postgres e Debezium Connect):
+   ```bash
+   docker compose up -d
+   ```
+   Aguarde o container `debezium-setup` registrar o conector (ele já faz o POST automático após o Debezium subir).
 
-## Prerequisites
+2. Rode os serviços Spring Boot localmente (em terminais separados):
+   ```bash
+   ./mvnw -f producer-service/pom.xml spring-boot:run
+   ```
+   ```bash
+   ./mvnw -f consumer-service/pom.xml spring-boot:run
+   ```
+   - Producer sobe em `http://localhost:8091`
+   - Consumer sobe em `http://localhost:8092`
 
-- Docker & Docker Compose
-- Java 17+
-- Maven
+Observação: o `producer-service` conecta no Postgres do Docker através de `localhost:5432` (conforme `application.yml`).
 
-## How to Run
+### Como testar
+1. Criar um produto (isso persiste no Postgres e gera eventos CDC via Debezium para o Kafka):
+   ```bash
+   curl -X POST http://localhost:8091/products \
+     -H "Content-Type: application/json" \
+     -d '{
+       "name": "Produto Exemplo",
+       "description": "Descrição de teste",
+       "price": 99.9
+     }'
+   ```
 
-### 1. Start the infrastructure
+2. Verificar logs do `consumer-service` para confirmar o consumo do evento:
+   - No terminal onde o consumer está rodando, você deverá ver mensagens do tópico gerado pelo Debezium (prefixo `dbserver1`), referentes à tabela `public.product`.
 
+3. (Opcional) Inspecionar mensagens no Kafka diretamente:
+   ```bash
+   docker exec -it kafka kafka-console-consumer \
+     --bootstrap-server localhost:9092 \
+     --topic dbserver1.public.product \
+     --from-beginning
+   ```
+
+### Encerrar
 ```bash
-docker-compose up -d
-This starts PostgreSQL, Kafka, Zookeeper, and Debezium Connect. The Debezium connector is automatically configured after startup.
+docker compose down -v
+```
 
-2. Create the product table
-bash
-Copy
-docker exec -it postgres psql -U psguser -d product_db -c "CREATE TABLE product (id SERIAL PRIMARY KEY, name VARCHAR(255), price DOUBLE PRECISION);"
-3. Run the services
-Producer service (port 8091):
+Isso remove containers e volumes, limpando o estado do banco e dos tópicos.
 
-bash
-Copy
-cd producer-service
-mvn spring-boot:run
-Consumer service (port 8092):
 
-bash
-Copy
-cd consumer-service
-mvn spring-boot:run
-4. Test it
-Insert a product:
-
-bash
-Copy
-curl -X POST http://localhost:8091/products -H "Content-Type: application/json" -d '{"name": "Laptop", "price": 1200.00}'
-Check the consumer logs to see the CDC event.
-
-Stop
-bash
-Copy
-docker-compose down -v
