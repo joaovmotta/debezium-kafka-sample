@@ -20,6 +20,13 @@ This project captures real-time database changes (INSERT, UPDATE, DELETE) from P
 docker-compose up -d
 This starts PostgreSQL, Kafka, Zookeeper, and Debezium Connect. The Debezium connector is automatically configured after startup.
 
+2. Create the product table
+bash
+Copy
+docker exec -it postgres psql -U psguser -d product_db -c "CREATE TABLE product (id SERIAL PRIMARY KEY, name VARCHAR(255), price DOUBLE PRECISION);"
+3. Run the services
+Producer service (port 8091):
+
 bash
 Copy
 cd producer-service
